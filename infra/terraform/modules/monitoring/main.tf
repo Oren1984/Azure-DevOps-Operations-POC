@@ -17,7 +17,8 @@ resource "azurerm_monitor_diagnostic_setting" "aks" {
     category = "kube-controller-manager"
   }
 
-  enabled_metric {
+  metric {
     category = "AllMetrics"
+    enabled  = true
   }
 }
