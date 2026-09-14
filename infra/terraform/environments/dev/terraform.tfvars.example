@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and fill in with your own values before ever
+# running `terraform plan` against a real subscription. This file uses only
+# safe example values and is not read automatically.
+
+project_name = "adops-poc"
+location     = "westeurope"
+
+# Real tenant ID - obtain with `az account show --query tenantId -o tsv`.
+# Never commit a real value.
+tenant_id = "00000000-0000-0000-0000-000000000000"
+
+node_count          = 1
+log_retention_days  = 30

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Azure DevOps Operations POC - Local Demonstration Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --border: #dfe3e8;
+      --text: #1f2430;
+      --muted: #5b6472;
+      --accent: #2f5fd6;
+      --accent-hover: #24449e;
+      --ok: #1f8a4c;
+      --warn: #b8860b;
+      --high: #c9642a;
+      --critical: #c0392b;
+      --info: #4a5568;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+    .page { max-width: 1000px; margin: 0 auto; padding: 16px 16px 48px; }
+
+    .banner {
+      background: #fff8e6;
+      border: 1px solid #f0d789;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 0.92rem;
+    }
+    .banner strong { display: inline-block; margin-right: 6px; }
+
+    header.top { margin-bottom: 8px; }
+    header.top h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    header.top p.subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+    nav.links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0;
+    }
+    nav.links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+    nav.links a:hover { background: #eef2fc; }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .panel h2 { margin-top: 0; font-size: 1.05rem; }
+
+    #run-demo-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    #run-demo-btn:hover { background: var(--accent-hover); }
+    #run-demo-btn:disabled { background: #9aa5b1; cursor: wait; }
+
+    #state-message {
+      margin-top: 12px;
+      font-size: 0.9rem;
+    }
+    #state-message.empty { color: var(--muted); }
+    #state-message.loading { color: var(--accent); }
+    #state-message.error { color: var(--critical); font-weight: 600; }
+    #state-message.success { color: var(--ok); }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      background: #fafbfc;
+    }
+    .card .value { font-size: 1.6rem; font-weight: 700; }
+    .card .label { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+    .severity-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .severity-info { background: var(--info); }
+    .severity-warning { background: var(--warn); }
+    .severity-high { background: var(--high); }
+    .severity-critical { background: var(--critical); }
+
+    dl.kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; margin: 0; }
+    dl.kv dt { color: var(--muted); font-size: 0.85rem; }
+    dl.kv dd { margin: 0; word-break: break-word; }
+
+    ol.steps { padding-left: 20px; }
+    ol.steps li { margin-bottom: 6px; }
+
+    table.audit {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    table.audit th, table.audit td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    table.audit th { color: var(--muted); font-weight: 600; }
+    .table-wrap { overflow-x: auto; }
+
+    details.raw summary {
+      cursor: pointer;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    details.raw pre {
+      background: #0f1117;
+      color: #d6e0ff;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      max-height: 400px;
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <h1>Azure DevOps Operations POC</h1>
+      <p class="subtitle">Local Demonstration Dashboard &middot; Deterministic MOCK Data</p>
+    </header>
+
+    <div class="banner">
+      <strong>Local Demonstration Dashboard.</strong>
+      All data below comes from a deterministic MOCK demo flow running entirely on your machine.
+      <strong>No real Azure resources are created or modified</strong> by this page or by anything
+      it calls.
+    </div>
+
+    <nav class="links">
+      <a href="/">Dashboard</a>
+      <a href="/docs">Swagger</a>
+      <a href="/redoc">ReDoc</a>
+      <a href="/health">Health</a>
+      <a href="/ready">Readiness</a>
+      <a href="/metrics">Metrics</a>
+    </nav>
+
+    <section class="panel">
+      <h2>Run the deterministic demo</h2>
+      <p style="color: var(--muted); font-size: 0.9rem; margin-top: 0;">
+        This calls the existing <code>POST /api/v1/demo/run</code> endpoint - the same one used by
+        <code>curl</code> or Swagger. The dashboard only displays what that endpoint (and
+        <code>GET /api/v1/audit</code>) return; it does not run any logic of its own.
+      </p>
+      <button id="run-demo-btn" type="button">Run MOCK Demo</button>
+      <div id="state-message" class="empty">No demo run yet. Click "Run MOCK Demo" to see results.</div>
+    </section>
+
+    <section id="results" class="hidden">
+      <section class="panel">
+        <h2>Summary</h2>
+        <div class="cards">
+          <div class="card"><div class="value" id="card-events">-</div><div class="label">Events</div></div>
+          <div class="card"><div class="value" id="card-incidents">-</div><div class="label">Incidents</div></div>
+          <div class="card"><div class="value" id="card-approval">-</div><div class="label">Approval status</div></div>
+          <div class="card"><div class="value" id="card-audit">-</div><div class="label">Audit records</div></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Incident details</h2>
+        <div id="incident-details"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Workflow steps</h2>
+        <ol class="steps" id="workflow-steps"></ol>
+      </section>
+
+      <section class="panel">
+        <h2>Audit trail</h2>
+        <div class="table-wrap">
+          <table class="audit">
+            <thead>
+              <tr><th>Timestamp</th><th>Action</th><th>Actor</th><th>Result</th></tr>
+            </thead>
+            <tbody id="audit-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <details class="raw">
+          <summary>Raw JSON (technical inspection)</summary>
+          <pre id="raw-json"></pre>
+        </details>
+      </section>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("run-demo-btn");
+      const stateMessage = document.getElementById("state-message");
+      const results = document.getElementById("results");
+
+      function setState(kind, text) {
+        stateMessage.className = kind;
+        stateMessage.textContent = text;
+      }
+
+      function severityBadge(severity) {
+        const cls = "severity-" + (severity || "info");
+        return '<span class="severity-badge ' + cls + '">' + (severity || "n/a") + "</span>";
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function renderSummary(demo, auditRecords) {
+        document.getElementById("card-events").textContent = demo.steps.length;
+
+        const incidentIds = new Set(
+          demo.steps.map((s) => s.incident_id).filter((id) => id)
+        );
+        document.getElementById("card-incidents").textContent = incidentIds.size;
+
+        document.getElementById("card-approval").textContent =
+          demo.final_incident ? demo.final_incident.approval_status : "n/a";
+
+        document.getElementById("card-audit").textContent =
+          demo.audit_trail_count != null ? demo.audit_trail_count : auditRecords.length;
+      }
+
+      function renderIncident(incident) {
+        const el = document.getElementById("incident-details");
+        if (!incident) {
+          el.innerHTML = '<p style="color: var(--muted);">No incident was opened during this run.</p>';
+          return;
+        }
+        const a = incident.assessment;
+        el.innerHTML =
+          '<dl class="kv">' +
+          "<dt>Incident ID</dt><dd>" + escapeHtml(incident.id) + "</dd>" +
+          "<dt>Source</dt><dd>" + escapeHtml(incident.source) + "</dd>" +
+          "<dt>Severity</dt><dd>" + severityBadge(a.severity) + " (risk score " + a.risk_score + ")</dd>" +
+          "<dt>Explanation</dt><dd>" + escapeHtml(a.explanation) + "</dd>" +
+          "<dt>Recommended action</dt><dd>" + escapeHtml(a.recommended_action) + "</dd>" +
+          "<dt>Approval status</dt><dd>" + escapeHtml(incident.approval_status) + "</dd>" +
+          "<dt>Decided by</dt><dd>" + escapeHtml(incident.decided_by || "-") + "</dd>" +
+          "<dt>Resolved</dt><dd>" + (incident.resolved ? "yes" : "no") + "</dd>" +
+          "</dl>";
+      }
+
+      function renderWorkflowSteps(auditRecords) {
+        const el = document.getElementById("workflow-steps");
+        el.innerHTML = auditRecords
+          .map(
+            (r) =>
+              "<li><strong>" + escapeHtml(r.action) + "</strong> - actor: " +
+              escapeHtml(r.actor) + ", result: " + escapeHtml(r.result) + "</li>"
+          )
+          .join("");
+      }
+
+      function renderAuditTable(auditRecords) {
+        const body = document.getElementById("audit-table-body");
+        body.innerHTML = auditRecords
+          .map(
+            (r) =>
+              "<tr><td>" + escapeHtml(r.timestamp) + "</td><td>" + escapeHtml(r.action) +
+              "</td><td>" + escapeHtml(r.actor) + "</td><td>" + escapeHtml(r.result) + "</td></tr>"
+          )
+          .join("");
+      }
+
+      async function runDemo() {
+        btn.disabled = true;
+        results.classList.add("hidden");
+        setState("loading", "Running deterministic MOCK demo...");
+
+        try {
+          const demoResponse = await fetch("/api/v1/demo/run", { method: "POST" });
+          if (!demoResponse.ok) {
+            throw new Error("Demo run failed with status " + demoResponse.status);
+          }
+          const demo = await demoResponse.json();
+
+          const auditResponse = await fetch(
+            "/api/v1/audit?correlation_id=" + encodeURIComponent(demo.correlation_id)
+          );
+          if (!auditResponse.ok) {
+            throw new Error("Audit trail fetch failed with status " + auditResponse.status);
+          }
+          const auditRecords = await auditResponse.json();
+
+          renderSummary(demo, auditRecords);
+          renderIncident(demo.final_incident);
+          renderWorkflowSteps(auditRecords);
+          renderAuditTable(auditRecords);
+          document.getElementById("raw-json").textContent = JSON.stringify(
+            { demo, audit_trail: auditRecords },
+            null,
+            2
+          );
+
+          results.classList.remove("hidden");
+          setState("success", "Demo completed. Correlation ID: " + demo.correlation_id);
+        } catch (err) {
+          setState("error", "Something went wrong: " + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      btn.addEventListener("click", runDemo);
+    })();
+  </script>
+</body>
+</html>

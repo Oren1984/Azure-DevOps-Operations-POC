@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    image: azure-devops-operations-poc:local
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENVIRONMENT: local
+      APP_LOG_LEVEL: INFO
+      APP_DATABASE_PATH: /app/data/app.db
+      APP_AI_PROVIDER: deterministic
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - app-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  app-data:

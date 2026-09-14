@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adops-poc
+  namespace: adops-poc
+  labels:
+    app: adops-poc
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: adops-poc
+  template:
+    metadata:
+      labels:
+        app: adops-poc
+    spec:
+      containers:
+        - name: app
+          # Replace with <acr-login-server>/azure-devops-operations-poc:<tag>
+          # once an image has been pushed to ACR (see pipelines/azure-pipelines.yml).
+          image: azure-devops-operations-poc:local
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: adops-poc-config
+          # Uncomment once secret.example.yaml has a real Secret applied:
+          # envFrom:
+          #   - secretRef:
+          #       name: adops-poc-secrets
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

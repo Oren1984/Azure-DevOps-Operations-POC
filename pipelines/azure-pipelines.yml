@@ -1,0 +1,140 @@
+# Azure DevOps Pipeline for this POC.
+#
+# This pipeline is a reference/illustration of how a real Azure DevOps
+# deployment pipeline for this kind of app would be structured. The
+# validation stage is fully self-contained and safe to run anywhere. The
+# deployment stage is disabled by default (`deployToAzure: false`) and is
+# gated behind an Azure DevOps Environment approval even when enabled - see
+# docs/CI_CD.md for exactly what that requires and why nothing here runs
+# automatically from a PR or a developer machine.
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+parameters:
+  - name: deployToAzure
+    displayName: "Push image to ACR and deploy to AKS (requires configured service connections)"
+    type: boolean
+    default: false
+
+variables:
+  pythonVersion: "3.12"
+  imageName: "azure-devops-operations-poc"
+
+stages:
+  # ---------------------------------------------------------------------
+  # Stage 1: Validation. Always runs. Requires no Azure service connection.
+  # ---------------------------------------------------------------------
+  - stage: Validate
+    displayName: "Lint, test, build, and validate IaC"
+    jobs:
+      - job: AppChecks
+        displayName: "Application checks"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "$(pythonVersion)"
+
+          - script: pip install -r requirements-dev.txt
+            displayName: "Install dependencies"
+
+          - script: ruff check app tests
+            displayName: "Lint (ruff)"
+
+          - script: ruff format --check app tests
+            displayName: "Format check (ruff)"
+
+          - script: pytest -q --junitxml=test-results.xml
+            displayName: "Unit, integration, and E2E tests"
+
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFiles: "test-results.xml"
+
+          - script: docker build -t $(imageName):$(Build.BuildId) .
+            displayName: "Build Docker image"
+
+      - job: InfraChecks
+        displayName: "Terraform and Kubernetes manifest checks"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - script: |
+              terraform -chdir=infra/terraform fmt -check -recursive
+            displayName: "Terraform format check"
+
+          - script: |
+              terraform -chdir=infra/terraform/environments/dev init -backend=false
+              terraform -chdir=infra/terraform/environments/dev validate
+            displayName: "Terraform init (no backend) and validate"
+
+          - script: |
+              kubectl apply --dry-run=client -f infra/kubernetes/ || true
+            displayName: "Kubernetes manifest dry-run (best-effort, no live cluster required for syntax)"
+
+  # ---------------------------------------------------------------------
+  # Stage 2: Push to ACR. Only runs on main, only when explicitly enabled,
+  # and only with a real Azure DevOps service connection configured
+  # (see docs/CI_CD.md - "acr-service-connection").
+  # ---------------------------------------------------------------------
+  - stage: PushImage
+    displayName: "Push image to Azure Container Registry"
+    dependsOn: Validate
+    condition: and(succeeded(), eq('${{ parameters.deployToAzure }}', true), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: Push
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - task: Docker@2
+            displayName: "Build and push to ACR"
+            inputs:
+              containerRegistry: "acr-service-connection" # must be created manually in project settings
+              repository: "$(imageName)"
+              command: "buildAndPush"
+              Dockerfile: "Dockerfile"
+              tags: |
+                $(Build.BuildId)
+                latest
+
+  # ---------------------------------------------------------------------
+  # Stage 3: Deploy to AKS. Gated behind an Azure DevOps Environment
+  # approval (configured outside this file, in Environments > aks-dev >
+  # Approvals and checks). Nothing deploys without a human clicking approve.
+  # ---------------------------------------------------------------------
+  - stage: DeployToAks
+    displayName: "Deploy to AKS (requires environment approval)"
+    dependsOn: PushImage
+    condition: and(succeeded(), eq('${{ parameters.deployToAzure }}', true))
+    jobs:
+      - deployment: Deploy
+        pool:
+          vmImage: "ubuntu-latest"
+        environment: "aks-dev" # approval/checks configured on this Environment in Azure DevOps
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: KubernetesManifest@1
+                  displayName: "Apply manifests"
+                  inputs:
+                    action: "deploy"
+                    kubernetesServiceConnection: "aks-service-connection" # must be created manually
+                    namespace: "adops-poc"
+                    manifests: |
+                      infra/kubernetes/namespace.yaml
+                      infra/kubernetes/configmap.yaml
+                      infra/kubernetes/deployment.yaml
+                      infra/kubernetes/service.yaml
+                    containers: |
+                      $(acrLoginServer)/$(imageName):$(Build.BuildId)

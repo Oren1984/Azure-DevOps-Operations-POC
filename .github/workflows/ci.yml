@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Format check (ruff)
+        run: ruff format --check app tests
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Build Docker image
+        run: docker build -t azure-devops-operations-poc:ci .
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Terraform format check
+        run: terraform -chdir=infra/terraform fmt -check -recursive
+
+      - name: Terraform init and validate
+        run: |
+          terraform -chdir=infra/terraform/environments/dev init -backend=false
+          terraform -chdir=infra/terraform/environments/dev validate
+
+      - name: Validate Kubernetes manifest YAML syntax
+        run: |
+          python -c "
+          import glob
+          import yaml
+          for f in glob.glob('infra/kubernetes/*.yaml'):
+              list(yaml.safe_load_all(open(f)))
+          print('Kubernetes manifest YAML is well-formed')
+          "

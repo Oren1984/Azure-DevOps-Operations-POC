@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: adops-poc-config
+  namespace: adops-poc
+data:
+  APP_ENVIRONMENT: "aks"
+  APP_LOG_LEVEL: "INFO"
+  APP_DATABASE_PATH: "/app/data/app.db"
+  APP_AI_PROVIDER: "deterministic"
